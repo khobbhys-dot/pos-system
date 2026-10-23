@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "HanFlo POS",
   description: "HanFlo POS - Sales & Inventory Management System",
   applicationName: "HanFlo POS",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   icons: {
     icon: "/icon.png",
     apple: "/apple-icon.png",
