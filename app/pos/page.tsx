@@ -103,38 +103,33 @@ export default function HanFloPOS() {
     }
   }
 
-  // === FIX 1: CHECK is_active ON INITIAL LOGIN ===
   useEffect(()=>{
-    async function checkLogin(){
-      const bid = localStorage.getItem('business_id')
-      const storedRole = localStorage.getItem('role')
-      const staffName = localStorage.getItem('staff_name')
-      const ownerEmail = localStorage.getItem('owner_email')
-      const staffUsername = localStorage.getItem('staff_username')
-      if(bid){
-        // NEW: Check if business is still active in DB
+    const bid = localStorage.getItem('business_id')
+    const storedRole = localStorage.getItem('role')
+    const staffName = localStorage.getItem('staff_name')
+    const ownerEmail = localStorage.getItem('owner_email')
+    const staffUsername = localStorage.getItem('staff_username')
+    if(bid){
+      setLogged(true)
+      if(storedRole === 'cashier'){
+        setRole('cashier')
+        setUser(staffUsername || staffName || 'cashier')
+      } else {
+        setRole('admin')
+        setUser(ownerEmail || 'admin')
+      }
+      ;(async()=>{
         try{
           const { supabase } = await import('@/lib/supabase')
           const { data } = await supabase.from('business_info').select('is_active,shop_name').eq('id', Number(bid)).single()
           if(data && data.is_active === false){
-            alert(`⛔ ${data.shop_name || 'This business'} has been DISABLED by admin. Contact HanFlo support.`)
+            alert(`⛔ ${data.shop_name || 'This business'} DISABLED by admin`)
             localStorage.clear()
             window.location.href = '/admin-login'
-            return
           }
         }catch{}
-
-        setLogged(true)
-        if(storedRole === 'cashier'){
-          setRole('cashier')
-          setUser(staffUsername || staffName || 'cashier')
-        } else {
-          setRole('admin')
-          setUser(ownerEmail || 'admin')
-        }
-      }
+      })()
     }
-    checkLogin()
   }, [])
 
   useEffect(()=>{
@@ -177,13 +172,6 @@ if(custData && custData.length>0){
         if(bidNumber){
           const { data: bizData } = await supabase.from('business_info').select('*').eq('id', bidNumber).single()
           if(bizData){
-            // === FIX 2: BLOCK IF DISABLED DURING LOAD ===
-            if(bizData.is_active === false){
-              alert(`⛔ ${bizData.shop_name} is disabled by admin`)
-              localStorage.clear()
-              window.location.href = '/admin-login'
-              return
-            }
             const mappedBiz = { shopName: bizData.shop_name || bizData.business_name || '', slogan: bizData.slogan || '', address: bizData.address || '', phone: bizData.phone || '', momo: bizData.momo || '', tin: bizData.tin || '', vatRate: Number(bizData.vat_rate || 0), serviceCharge: Number(bizData.service_charge || 0) }
             setBusiness(mappedBiz)
             localStorage.setItem('swift_business', JSON.stringify(mappedBiz))
@@ -570,6 +558,52 @@ if(custData && custData.length>0){
             <div className="flex gap-2 flex-wrap">
               {products.map(p=><div key={p.id} className="flex items-center gap-1 bg-black/40 border border-white/10 rounded-full pl-1 pr-2 py-1 text-xs"><div className="w-8 h-8 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">{renderImage(p.image)}</div><span className="max-w-[80px] truncate">{p.name}</span><span className="text-[#d4af78]">GHS {p.price}</span><button onClick={()=>openEdit(p)} className="bg-white/10 px-2 py-1 rounded-full text-[10px]">Edit</button><button onClick={()=>printBarcode(p)} className="bg-white/10 px-2 py-1 rounded-full text-[10px]">🏷️</button></div>)}
             </div>
+            {showAdd && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur z-[200] flex items-center justify-center p-4">
+                <div className="bg-[#151515] border border-[#d4af78]/30 rounded-2xl p-6 w-[400px]">
+                  <div className="flex justify-between mb-4"><h3 className="text-[#d4af78] font-bold">Add Product</h3><button onClick={()=>setShowAdd(false)} className="w-7 h-7 bg-white/10 rounded-full">✕</button></div>
+                  <div className="space-y-3">
+                    <input value={newProd.name} onChange={e=>setNewProd({...newProd, name:e.target.value})} placeholder="Product Name" className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={newProd.price} onChange={e=>{
+                        const v = e.target.value
+                        if(v!=='' && Number(v)<0) return
+                        setNewProd({...newProd, price:v})
+                      }} type="number" min="0" placeholder="Price GHS" className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/>
+                      <input value={newProd.stock} onChange={e=>{
+                        const v = e.target.value
+                        if(v!=='' && Number(v)<0) return
+                        setNewProd({...newProd, stock:v})
+                      }} type="number" min="0" placeholder="Stock" className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/>
+                    </div>
+                    <input value={newProd.barcode} onChange={e=>setNewProd({...newProd, barcode:e.target.value})} placeholder="Barcode" className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/>
+                    <div className="bg-white/5 border border-dashed border-white/20 p-3 rounded-xl">
+                      <div className="text-xs text-neutral-400 mb-2">Upload Photo</div>
+                      <input type="file" accept="image/*" onChange={async e=>{ if(e.target.files?.[0]){ const url = await uploadImage(e.target.files[0]); setNewProd({...newProd, image:url}) } }} className="w-full text-xs"/>
+                      {uploading && <div className="text-[11px] text-yellow-400 mt-2">Compressing...</div>}
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="w-24 h-24 rounded-xl overflow-hidden bg-black/30 flex items-center justify-center">{renderImage(newProd.image)}</div>
+                        {newProd.image && newProd.image !== '🛍️' && <button onClick={()=>setNewProd({...newProd, image:'🛍️'})} className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-full text-xs">🗑️ Remove</button>}
+                      </div>
+                    </div>
+                  </div>
+                  <button disabled={uploading} onClick={async()=>{
+                    if(!newProd.name || !newProd.price) return alert('Enter name & price')
+                    if(Number(newProd.price) < 0 || Number(newProd.stock) < 0) return alert('Price and stock cannot be negative')
+                    try{
+                      const { supabase } = await import('@/lib/supabase')
+                      const storedBid = localStorage.getItem('business_id')
+                      const bidNumber = storedBid ? Number(storedBid) : null
+                      const { data, error } = await supabase.from('products').insert({ name: newProd.name, price: Number(newProd.price), stock: Number(newProd.stock)||0, barcode: newProd.barcode||null, image: newProd.image, category: newProd.category, business_id: bidNumber }).select().single()
+                      if(error) throw error
+                      if(data) setProducts([...products, {...data, price:Number(data.price), stock:Number(data.stock), image: data.image}])
+                      setNewProd({ name:'', barcode:'', price:'', stock:'', category:'Drinks', image:'🛍️' })
+                      setShowAdd(false)
+                    }catch(e:any){ alert('Add failed: '+(e.message||JSON.stringify(e))) }
+                  }} className="w-full bg-[#d4af78] text-black py-3 rounded-xl font-bold mt-5">Add to Supabase</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -603,6 +637,77 @@ if(custData && custData.length>0){
           <div className="text-[9px] text-neutral-500 text-center mt-1">Stock auto-updates to cloud • No data loss</div>
         </div>
       </div>
+
+     {/* FIXED EDIT MODALS - MOVED TO ROOT WITH HIGH Z-INDEX */}
+     {showEdit && editing && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur z-[999] flex items-center justify-center p-4">
+                <div className="bg-[#151515] border border-[#d4af78]/30 rounded-2xl p-6 w-[400px]">
+                  <div className="flex justify-between mb-4"><h3 className="text-[#d4af78] font-bold">Edit Product</h3><button onClick={()=>setShowEdit(false)} className="w-7 h-7 bg-white/10 rounded-full">✕</button></div>
+                  <div className="space-y-3">
+                    <input value={editForm.name} onChange={e=>setEditForm({...editForm, name:e.target.value})} placeholder="Name" className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><label className="text-[10px] text-[#d4af78]">PRICE (GHS)</label><input value={editForm.price} onChange={e=>{
+                        const v=e.target.value
+                        if(v!=='' && Number(v)<0) return
+                        setEditForm({...editForm, price:v})
+                      }} type="number" min="0" step="0.01" className="w-full bg-white/5 border border-[#d4af78]/40 p-3 rounded-xl text-sm outline-none font-bold"/></div>
+                      <div><label className="text-[10px] text-neutral-400">STOCK</label><input value={editForm.stock} onChange={e=>{
+                        const v=e.target.value
+                        if(v!=='' && Number(v)<0) return
+                        setEditForm({...editForm, stock:v})
+                      }} type="number" min="0" className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/></div>
+                    </div>
+                    <input value={editForm.barcode} onChange={e=>setEditForm({...editForm, barcode:e.target.value})} placeholder="Barcode" className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/>
+                    <div className="bg-white/5 border border-dashed border-white/20 p-3 rounded-xl">
+                      <div className="text-xs text-neutral-400 mb-2">Change Photo</div>
+                      <input type="file" accept="image/*" onChange={async e=>{ if(e.target.files?.[0]){ const url = await uploadImage(e.target.files[0]); setEditForm({...editForm, image:url}) } }} className="w-full text-xs"/>
+                      {uploading && <div className="text-[11px] text-yellow-400 mt-2">Compressing...</div>}
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="w-24 h-24 rounded-xl overflow-hidden bg-black/30 flex items-center justify-center">{renderImage(editForm.image)}</div>
+                        {editForm.image && editForm.image !== '🛍️' && <button onClick={()=>setEditForm({...editForm, image:'🛍️'})} className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-full text-xs">🗑️ Remove Photo</button>}
+                        <button onClick={()=>editing && printBarcode(editing)} className="bg-white/10 px-3 py-1.5 rounded-full text-xs">🏷️ Print Barcode</button>
+                      </div>
+                    </div>
+                  </div>
+                  <button disabled={uploading} onClick={async()=>{
+                    if(Number(editForm.price) < 0 || Number(editForm.stock) < 0) return alert('Price and stock cannot be negative')
+                    try{
+                      const { supabase } = await import('@/lib/supabase')
+                      const payload = { name: editForm.name, price: Number(editForm.price), stock: Number(editForm.stock), barcode: editForm.barcode || null, image: editForm.image }
+                      if(payload.image === '🛍️' && editing?.image?.includes('supabase')){
+                        try{ const fileName = editing.image.split('/').pop() || ''; if(fileName) await supabase.storage.from('products').remove([fileName]) }catch{}
+                      }
+                      const { error } = await supabase.from('products').update(payload).eq('id', editing.id)
+                      if(error) throw error
+                      setProducts(ps=>ps.map(p=> p.id===editing.id ? { ...p, name: payload.name, price: payload.price, stock: payload.stock, barcode: payload.barcode, image: payload.image } : p))
+                      setShowEdit(false)
+                    }catch(e:any){ alert('Update failed: '+(e.message||JSON.stringify(e))) }
+                  }} className="w-full bg-[#d4af78] text-black py-3 rounded-xl font-bold mt-5">Save Changes</button>
+                </div>
+              </div>
+            )}
+            {showEditCashier && editingCashier && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur z-[999] flex items-center justify-center p-4">
+                <div className="bg-[#151515] border border-[#d4af78]/30 rounded-2xl p-6 w-[380px]">
+                  <div className="flex justify-between mb-4"><h3 className="text-[#d4af78] font-bold">Edit Cashier</h3><button onClick={()=>setShowEditCashier(false)} className="w-7 h-7 bg-white/10 rounded-full">✕</button></div>
+                  <div className="space-y-3">
+                    <div><label className="text-[10px] text-[#d4af78]">USERNAME</label><input value={editCashierForm.username} onChange={e=>setEditCashierForm({...editCashierForm, username:e.target.value})} className="w-full bg-white/5 border border-[#d4af78]/40 p-3 rounded-xl text-sm outline-none font-bold"/></div>
+                    <div><label className="text-[10px] text-neutral-400">PASSWORD</label><input value={editCashierForm.password} onChange={e=>setEditCashierForm({...editCashierForm, password:e.target.value})} className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/></div>
+                    <div><label className="text-[10px] text-neutral-400">FULL NAME</label><input value={editCashierForm.name} onChange={e=>setEditCashierForm({...editCashierForm, name:e.target.value})} className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none"/></div>
+                  </div>
+                  <button onClick={async()=>{
+                    try{
+                      const { supabase } = await import('@/lib/supabase')
+                      const payload = { username: editCashierForm.username, password: editCashierForm.password, name: editCashierForm.name }
+                      const { error } = await supabase.from('cashiers').update(payload).eq('id', editingCashier.id)
+                      if(error) throw error
+                      setCashiers(cs=>cs.map(c=> c.id===editingCashier.id ? { ...c, ...payload } : c))
+                      setShowEditCashier(false)
+                    }catch(e:any){ alert('Update failed: '+(e.message||JSON.stringify(e))) }
+                  }} className="w-full bg-[#d4af78] text-black py-3 rounded-xl font-bold mt-5">Save Cashier Changes</button>
+                </div>
+              </div>
+            )}
 
      {showReceipt && lastSale && (
       <div className="fixed inset-0 bg-black/80 backdrop-blur z-[100] flex items-center justify-center p-4">
