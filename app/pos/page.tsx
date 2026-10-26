@@ -150,8 +150,10 @@ export default function HanFloPOS() {
         const { data: sales } = await salesQuery
         if(sales) setSalesHistory(sales)
 
-        const { data: custData } = await supabase.from('customers').select('*').order('total_spent', {ascending:false}).limit(200)
-        if(custData && custData.length>0){
+        let custQuery = supabase.from('customers').select('*')
+if(bidNumber) custQuery = custQuery.eq('business_id', bidNumber)
+const { data: custData } = await custQuery
+if(custData && custData.length>0){
           const mapped = custData.map((c:any)=>({ phone:c.phone, name:c.name, visits:c.visits, totalSpent:Number(c.total_spent) }))
           setCustomers(mapped)
           localStorage.setItem('swift_customers', JSON.stringify(mapped))
