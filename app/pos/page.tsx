@@ -750,7 +750,7 @@ if(custData && custData.length>0){
             <div>Goods sold are not returnable</div>
             <div className="mt-3 border-t border-black pt-2">
               <div>Powered by HanFlo Tech Ghana</div>
-              <div className="text-[7px] mt-1">www.hanflotech.com.gh | Support: 0245 647 659</div>
+              <div className="text-[7px] mt-1">www.hanflotechgh.com | Support: 0245 647 659</div>
               <div className="mt-2 font-bold text-[9px] tracking-[2px]">*** CUSTOMER COPY ***</div>
             </div>
           </div>
